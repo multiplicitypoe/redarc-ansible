@@ -1,0 +1,37 @@
+---
+- name: Set Up Redarc
+  hosts: all
+  gather_facts: true
+
+  tasks:
+    - name: Create base directory if it doesn't exist
+      become: true
+      file:
+        path: "{{ base_dir }}/{{ domain }}"
+        state: directory
+        mode: '0755'
+
+    - name: Install Docker Compose (Ubuntu)
+      become: true
+      apt:
+        name: docker-compose
+        state: present
+
+    - name: Generate PostgreSQL password
+      set_fact:
+        postgres_password: "{{ lookup('password', 'inventory/host_vars/{{ domain }}/passwords/postgres', length=16, chars='ascii_letters,digits') }}"
+
+    - name: Generate Elasticsearch password
+      set_fact:
+        es_password: "{{ lookup('password', 'inventory/host_vars/{{ domain }}/passwords/es', length=24, chars='ascii_letters,digits') }}"
+
+    - name: Generate Docker Compose configuration file
+      template:
+        src: templates/docker-compose-es.yml.j2
+        dest: "{{ base_dir }}/{{ domain }}/docker-compose-es.yml"
+
+    - name: Run Docker Compose
+      command: docker-compose -f "{{ base_dir }}/{{ domain }}/docker-compose-es.yml" up -d
+      become: true
+      become_user: root
+
