@@ -10,12 +10,50 @@
         path: "{{ base_dir }}/{{ domain }}"
         state: directory
         mode: '0755'
-
-    - name: Install Docker Compose (Ubuntu)
-      become: true
+    - name: Install aptitude
       apt:
-        name: docker-compose
+        name: aptitude
+        state: latest
+        update_cache: true
+
+    - name: install dependencies
+      apt:
+        state: latest
+        update_cache: true
+        pkg:
+          - "nginx"
+          - "certbot"
+          - "python3-certbot-nginx"
+          - "apt-transport-https"
+          - "ca-certificates"
+          - "curl"
+          - "software-properties-common"
+          - "python3-pip"
+          - "virtualenv"
+          - "python3-setuptools"
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
         state: present
+
+    - name: Add Docker Repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable
+        state: present
+
+    - name: Update apt and install docker-ce
+      apt:
+        name: docker-ce
+        state: latest
+        update_cache: true
+
+    - name: Install Docker Module and docker-compose for Python
+      pip:
+        name:
+          - docker
+          - docker-compose
+        state: latest
 
     - name: Generate PostgreSQL password
       set_fact:
@@ -25,13 +63,61 @@
       set_fact:
         es_password: "{{ lookup('password', 'inventory/host_vars/{{ domain }}/passwords/es', length=24, chars='ascii_letters,digits') }}"
 
-    - name: Generate Docker Compose configuration file
+    - name: request initial letsencrypt certificate
+      command: certbot certonly --nginx --agree-tos --cert-name '{{ domain }}' -d '{{ domain }}' -m '{{ letsencrypt_contact_email }}'
+      args:
+        creates: "/etc/letsencrypt/live/{{domain}}/privkey.pem"
+
+    - name: add template files
       template:
-        src: templates/docker-compose-es.yml.j2
-        dest: "{{ base_dir }}/{{ domain }}/docker-compose-es.yml"
+        src: "{{item.src}}"
+        dest: "{{item.dest}}"
+        mode: "{{item.mode}}"
+      with_items:
+        - src: "templates/docker-compose.yml"
+          dest: "{{base_dir}}/{{domain}}/docker-compose.yml"
+          mode: "0600"
+        - src: "templates/nginx.conf"
+          dest: "/etc/nginx/sites-available/{{domain}}.conf"
+          mode: "0644"
 
-    - name: Run Docker Compose
-      command: docker-compose -f "{{ base_dir }}/{{ domain }}/docker-compose-es.yml" up -d
-      become: true
-      become_user: root
+    - block:
+      - name: gather stats on site enabled config
+        stat:
+          path: "/etc/nginx/sites-enabled/{{domain}}.conf"
+        register: reg_enabled
 
+      - name: remove if regular file (legacy) instead of symlink
+        file:
+          path: "/etc/nginx/sites-enabled/{{domain}}.conf"
+          state: absent
+        when: reg_enabled.stat.exists and reg_enabled.stat.isreg
+
+      - name: enable nginx site
+        file:
+          src: "../sites-available/{{domain}}.conf"
+          dest: "/etc/nginx/sites-enabled/{{domain}}.conf"
+          state: link
+    - name: Clone the repository
+      git:
+        repo: "https://github.com/ryebreadgit/redarc.git"
+        dest: "{{ base_dir }}/{{ domain }}/clone"
+
+
+    - name: start docker-compose
+      docker_compose:
+        project_src: "{{ base_dir }}/{{ domain }}"
+        state: present
+        pull: no
+        remove_orphans: yes
+
+
+    - name: reload nginx with new config
+      shell: nginx -s reload
+
+    - name: certbot renewal cronjob
+      cron:
+        special_time: daily
+        name: certbot-renew-redarc
+        user: root
+        job: "certbot certonly --nginx --cert-name '{{ domain }}' -d '{{ domain }}' --deploy-hook 'nginx -s reload'"

@@ -1,0 +1,10 @@
+[all]
+# to get started, adjust the values below.
+# replace 'domain' with your server's IP or hostname
+# replace 'user' with the username you use to connect to your server via ssh
+# replace 'domain.com' and 'localhost' with your domain
+# replace 'basedir' or /srv/redarc with your base directory
+hostname ansible_host=hostname ansible_user=user domain=domain.com base_dir=/srv/redarc letsencrypt_contact_email=yourname@email.com
+
+[all:vars]
+ansible_connection=ssh

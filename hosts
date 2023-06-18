@@ -1,8 +1,0 @@
-[lemmy]
-# to get started,  adjust the values below.
-# - `user@sshremote`: replace with the destination you use to connect to your server via ssh
-# - `domain=your_domain_here.com`: replace `your_domain_here.com` with your domain
-user@sshremote  domain=your_domain_here.com base_dir=/srv/redarc/
-
-[all:vars]
-ansible_connection=ssh

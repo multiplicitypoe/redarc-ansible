@@ -7,7 +7,7 @@ services:
     networks: 
       - redarc
     environment:
-      POSTGRES_PASSWORD: {{ postgres_password }}
+      POSTGRES_PASSWORD: "{{ postgres_password }}"
     volumes:
       - pgredarc01:/var/lib/postgresql/data
     ports:
@@ -15,19 +15,19 @@ services:
 
   redarc:
     build:
-      context: https://github.com/ryebreadgit/redarc.git
+      context: "{{ base_dir }}/{{ domain }}/clone"
       dockerfile: Dockerfile
     image: redarc
     container_name: redarc
     networks:
       - redarc
     environment:
-      REDARC_API: http://redarc{{ domain }}/api/
+      REDARC_API: https://redarc.{{ domain }}/api
       SERVER_NAME: redarc.{{ domain }}
-      PGPASSWORD: {{ postgres_password }}
+      PGPASSWORD: "{{ postgres_password }}"
       ES_ENABLED: 'true'
-      ES_HOST: http://es.{{ domain }}
-      ES_PASSWORD: {{ es_password }}
+      ES_HOST: https://es.{{ domain }}
+      ES_PASSWORD: "{{ es_password }}"
     ports:
       - "8080:80"
     depends_on:
@@ -41,8 +41,8 @@ services:
       - redarc
     environment:
       - discovery.type=single-node
-      - ELASTIC_PASSWORD={{ es_password }}
-      - "http.host=http://es{{ domain }}"
+      - ELASTIC_PASSWORD={{ es_password }}"
+      - "http.host=https://es.{{ domain }}"
       - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
     volumes:
       - esredarc01:/usr/share/elasticsearch/data
